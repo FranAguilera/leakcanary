@@ -26,6 +26,16 @@ class ScreenOffTrigger(
   analysisExecutor: Executor,
 
   /**
+   * The initial delay (in milliseconds) before the [analysisExecutor] starts
+   *
+   * If not specified, the default initial delay is set to 100 milliseconds.
+   */
+  analysisExecutorDelayMillis: Long =
+    TimeUnit.SECONDS.toMillis(
+      INITIAL_EXECUTOR_DELAY_IN_MILLI
+    ),
+
+  /**
    * Called back with a [HeapAnalysisJob.Result] after the screen went off and a
    * heap analysis was attempted. This is called on the same thread that the analysis was
    * performed on.
@@ -36,19 +46,10 @@ class ScreenOffTrigger(
   private val analysisCallback: (HeapAnalysisJob.Result) -> Unit = { result ->
     SharkLog.d { "$result" }
   },
+) {
 
-  /**
-   * Initial executor delay to wait for analysisExecutor to start analysis.
-   *
-   * If not provided initial delay is 100ms
-   */
-  analysisExecutorDelayMillis: Long =
-    TimeUnit.SECONDS.toMillis(
-      INITIAL_EXECUTOR_DELAY_IN_MILLI
-    ),
-  ) {
-
-  private val delayedScheduledExecutorService = DelayedScheduledExecutorService(analysisExecutor, analysisExecutorDelayMillis)
+  private val delayedScheduledExecutorService =
+    DelayedScheduledExecutorService(analysisExecutor, analysisExecutorDelayMillis)
 
   @Volatile
   private var currentJob: HeapAnalysisJob? = null
@@ -69,10 +70,10 @@ class ScreenOffTrigger(
             currentJob = null
             analysisCallback(result)
           }
-        }else {
-          currentJob?.cancel("screen on again")
-          currentJob = null
         }
+      } else {
+        currentJob?.cancel("screen on again")
+        currentJob = null
       }
     }
   }
@@ -99,7 +100,8 @@ class ScreenOffTrigger(
 
   private class DelayedScheduledExecutorService(
     private val analysisExecutor: Executor,
-    private val analysisExecutorDelayMillis: Long) {
+    private val analysisExecutorDelayMillis: Long
+  ) {
 
     private val scheduledExecutor: ScheduledExecutorService by lazy {
       Executors.newScheduledThreadPool(1)
