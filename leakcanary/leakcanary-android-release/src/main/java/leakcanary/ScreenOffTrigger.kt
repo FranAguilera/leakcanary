@@ -42,13 +42,13 @@ class ScreenOffTrigger(
    *
    * If not provided initial delay is 100ms
    */
-  private val analysisExecutorDelayMillis: Long =
+  analysisExecutorDelayMillis: Long =
     TimeUnit.SECONDS.toMillis(
       INITIAL_EXECUTOR_DELAY_IN_MILLI
     ),
   ) {
 
-  private val delayedScheduledExecutorService = DelayedScheduledExecutorService(analysisExecutor)
+  private val delayedScheduledExecutorService = DelayedScheduledExecutorService(analysisExecutor, analysisExecutorDelayMillis)
 
   @Volatile
   private var currentJob: HeapAnalysisJob? = null
@@ -63,19 +63,16 @@ class ScreenOffTrigger(
           val job =
             analysisClient.newJob(JobContext(ScreenOffTrigger::class))
           currentJob = job
-          delayedScheduledExecutorService.schedule(
-            {
-              checkNotMainThread()
-              val result = job.execute()
-              currentJob = null
-              analysisCallback(result)
-            },
-            analysisExecutorDelayMillis
-          )
+          delayedScheduledExecutorService.schedule {
+            checkNotMainThread()
+            val result = job.execute()
+            currentJob = null
+            analysisCallback(result)
+          }
+        }else {
+          currentJob?.cancel("screen on again")
+          currentJob = null
         }
-      } else {
-        currentJob?.cancel("screen on again")
-        currentJob = null
       }
     }
   }
@@ -100,7 +97,10 @@ class ScreenOffTrigger(
     delayedScheduledExecutorService.shutDown()
   }
 
-  private class DelayedScheduledExecutorService(private val analysisExecutor: Executor) {
+  private class DelayedScheduledExecutorService(
+    private val analysisExecutor: Executor,
+    private val analysisExecutorDelayMillis: Long) {
+
     private val scheduledExecutor: ScheduledExecutorService by lazy {
       Executors.newScheduledThreadPool(1)
     }
@@ -108,7 +108,7 @@ class ScreenOffTrigger(
     /**
      * Runs the specified [action] after the an [analysisExecutorDelayMillis]
      */
-    fun schedule(action: Runnable, analysisExecutorDelayMillis: Long) {
+    fun schedule(action: Runnable) {
       scheduledExecutor.schedule(
         {
           analysisExecutor.execute(action)
