@@ -108,7 +108,7 @@ class ScreenOffTrigger(
     }
 
     /**
-     * Runs the specified [action] after the an [analysisExecutorDelayMillis]
+     * Runs the specified [action] after an initial [analysisExecutorDelayMillis]
      */
     fun schedule(action: Runnable) {
       scheduledExecutor.schedule(
