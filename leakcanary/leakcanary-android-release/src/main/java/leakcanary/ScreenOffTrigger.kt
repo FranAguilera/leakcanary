@@ -9,7 +9,11 @@ import android.content.Intent.ACTION_SCREEN_ON
 import android.content.IntentFilter
 import android.os.Build
 import java.util.concurrent.Executor
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 import leakcanary.internal.friendly.checkMainThread
+import leakcanary.internal.friendly.checkNotMainThread
 import shark.SharkLog
 
 class ScreenOffTrigger(
@@ -19,7 +23,7 @@ class ScreenOffTrigger(
    * The executor on which the analysis is performed and on which [analysisCallback] is called.
    * This should likely be a single thread executor with a background thread priority.
    */
-  private val analysisExecutor: Executor,
+  analysisExecutor: Executor,
 
   /**
    * Called back with a [HeapAnalysisJob.Result] after the screen went off and a
@@ -32,7 +36,19 @@ class ScreenOffTrigger(
   private val analysisCallback: (HeapAnalysisJob.Result) -> Unit = { result ->
     SharkLog.d { "$result" }
   },
-) {
+
+  /**
+   * Initial executor delay to wait for analysisExecutor to start analysis.
+   *
+   * If not provided initial delay is 100ms
+   */
+  private val analysisExecutorDelayMillis: Long =
+    TimeUnit.SECONDS.toMillis(
+      INITIAL_EXECUTOR_DELAY_IN_MILLI
+    ),
+  ) {
+
+  private val delayedScheduledExecutorService = DelayedScheduledExecutorService(analysisExecutor)
 
   @Volatile
   private var currentJob: HeapAnalysisJob? = null
@@ -42,20 +58,24 @@ class ScreenOffTrigger(
       context: Context,
       intent: Intent
     ) {
-      analysisExecutor.execute {
-        if (intent.action == ACTION_SCREEN_OFF) {
-          if (currentJob == null) {
-            val job =
-              analysisClient.newJob(JobContext(ScreenOffTrigger::class))
-            currentJob = job
-            val result = job.execute()
-            currentJob = null
-            analysisCallback(result)
-          }
-        } else {
-          currentJob?.cancel("screen on again")
-          currentJob = null
+      if (intent.action == ACTION_SCREEN_OFF) {
+        if (currentJob == null) {
+          val job =
+            analysisClient.newJob(JobContext(ScreenOffTrigger::class))
+          currentJob = job
+          delayedScheduledExecutorService.schedule(
+            {
+              checkNotMainThread()
+              val result = job.execute()
+              currentJob = null
+              analysisCallback(result)
+            },
+            analysisExecutorDelayMillis
+          )
         }
+      } else {
+        currentJob?.cancel("screen on again")
+        currentJob = null
       }
     }
   }
@@ -77,5 +97,33 @@ class ScreenOffTrigger(
   fun stop() {
     checkMainThread()
     application.unregisterReceiver(screenReceiver)
+    delayedScheduledExecutorService.shutDown()
+  }
+
+  private class DelayedScheduledExecutorService(private val analysisExecutor: Executor) {
+    private val scheduledExecutor: ScheduledExecutorService by lazy {
+      Executors.newScheduledThreadPool(1)
+    }
+
+    /**
+     * Runs the specified [action] after the an [analysisExecutorDelayMillis]
+     */
+    fun schedule(action: Runnable, analysisExecutorDelayMillis: Long) {
+      scheduledExecutor.schedule(
+        {
+          analysisExecutor.execute(action)
+        },
+        analysisExecutorDelayMillis,
+        TimeUnit.MILLISECONDS
+      )
+    }
+
+    fun shutDown() {
+      scheduledExecutor.shutdown()
+    }
+  }
+
+  private companion object {
+    private const val INITIAL_EXECUTOR_DELAY_IN_MILLI = 100L
   }
 }
