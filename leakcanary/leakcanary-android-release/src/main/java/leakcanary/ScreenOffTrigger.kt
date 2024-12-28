@@ -23,14 +23,14 @@ class ScreenOffTrigger(
    * The executor on which the analysis is performed and on which [analysisCallback] is called.
    * This should likely be a single thread executor with a background thread priority.
    */
-  analysisExecutor: Executor,
+  private val analysisExecutor: Executor,
 
   /**
    * The initial delay (in milliseconds) before the [analysisExecutor] starts
    *
    * If not specified, the default initial delay is set to 100 milliseconds.
    */
-  analysisExecutorDelayMillis: Long =
+  private val analysisExecutorDelayMillis: Long =
     TimeUnit.SECONDS.toMillis(
       INITIAL_EXECUTOR_DELAY_IN_MILLI
     ),
@@ -48,8 +48,7 @@ class ScreenOffTrigger(
   },
 ) {
 
-  private val delayedScheduledExecutorService =
-    DelayedScheduledExecutorService(analysisExecutor, analysisExecutorDelayMillis)
+  private var delayedScheduledExecutorService: DelayedScheduledExecutorService? = null
 
   @Volatile
   private var currentJob: HeapAnalysisJob? = null
@@ -64,7 +63,7 @@ class ScreenOffTrigger(
           val job =
             analysisClient.newJob(JobContext(ScreenOffTrigger::class))
           currentJob = job
-          delayedScheduledExecutorService.schedule {
+          delayedScheduledExecutorService?.schedule {
             checkNotMainThread()
             val result = job.execute()
             currentJob = null
@@ -80,6 +79,7 @@ class ScreenOffTrigger(
 
   fun start() {
     checkMainThread()
+    initializeDelayedExecutor()
     val intentFilter = IntentFilter().apply {
       addAction(ACTION_SCREEN_ON)
       addAction(ACTION_SCREEN_OFF)
@@ -94,8 +94,19 @@ class ScreenOffTrigger(
 
   fun stop() {
     checkMainThread()
+    shutDownDelayedExecutor()
     application.unregisterReceiver(screenReceiver)
-    delayedScheduledExecutorService.shutDown()
+  }
+
+  private fun initializeDelayedExecutor(){
+    if (delayedScheduledExecutorService == null) {
+      delayedScheduledExecutorService = DelayedScheduledExecutorService(analysisExecutor, analysisExecutorDelayMillis )
+    }
+  }
+
+  private fun shutDownDelayedExecutor(){
+    delayedScheduledExecutorService?.shutdownNow()
+    delayedScheduledExecutorService = null
   }
 
   private class DelayedScheduledExecutorService(
@@ -120,8 +131,8 @@ class ScreenOffTrigger(
       )
     }
 
-    fun shutDown() {
-      scheduledExecutor.shutdown()
+    fun shutdownNow() {
+      scheduledExecutor.shutdownNow()
     }
   }
 
