@@ -11,6 +11,7 @@ import android.os.Build
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import leakcanary.internal.friendly.checkMainThread
 import leakcanary.internal.friendly.checkNotMainThread
@@ -23,17 +24,14 @@ class ScreenOffTrigger(
    * The executor on which the analysis is performed and on which [analysisCallback] is called.
    * This should likely be a single thread executor with a background thread priority.
    */
-  private val analysisExecutor: Executor,
+  analysisExecutor: Executor,
 
   /**
    * The initial delay (in milliseconds) before the [analysisExecutor] starts
    *
    * If not specified, the default initial delay is set to 100 milliseconds.
    */
-  private val analysisExecutorDelayMillis: Long =
-    TimeUnit.SECONDS.toMillis(
-      INITIAL_EXECUTOR_DELAY_IN_MILLI
-    ),
+  analysisExecutorDelayMillis: Long = INITIAL_EXECUTOR_DELAY_IN_MILLI,
 
   /**
    * Called back with a [HeapAnalysisJob.Result] after the screen went off and a
@@ -48,7 +46,8 @@ class ScreenOffTrigger(
   },
 ) {
 
-  private var delayedScheduledExecutorService: DelayedScheduledExecutorService? = null
+  private var delayedScheduledExecutorService: DelayedScheduledExecutorService =
+    DelayedScheduledExecutorService(analysisExecutor, analysisExecutorDelayMillis)
 
   @Volatile
   private var currentJob: HeapAnalysisJob? = null
@@ -63,7 +62,7 @@ class ScreenOffTrigger(
           val job =
             analysisClient.newJob(JobContext(ScreenOffTrigger::class))
           currentJob = job
-          delayedScheduledExecutorService?.schedule {
+          delayedScheduledExecutorService.schedule {
             checkNotMainThread()
             val result = job.execute()
             currentJob = null
@@ -79,7 +78,6 @@ class ScreenOffTrigger(
 
   fun start() {
     checkMainThread()
-    initializeDelayedExecutor()
     val intentFilter = IntentFilter().apply {
       addAction(ACTION_SCREEN_ON)
       addAction(ACTION_SCREEN_OFF)
@@ -94,19 +92,8 @@ class ScreenOffTrigger(
 
   fun stop() {
     checkMainThread()
-    shutDownDelayedExecutor()
+    delayedScheduledExecutorService.stop()
     application.unregisterReceiver(screenReceiver)
-  }
-
-  private fun initializeDelayedExecutor(){
-    if (delayedScheduledExecutorService == null) {
-      delayedScheduledExecutorService = DelayedScheduledExecutorService(analysisExecutor, analysisExecutorDelayMillis )
-    }
-  }
-
-  private fun shutDownDelayedExecutor(){
-    delayedScheduledExecutorService?.shutdownNow()
-    delayedScheduledExecutorService = null
   }
 
   private class DelayedScheduledExecutorService(
@@ -118,11 +105,13 @@ class ScreenOffTrigger(
       Executors.newScheduledThreadPool(1)
     }
 
+    private var scheduledFuture:ScheduledFuture<*>? = null
+    
     /**
      * Runs the specified [action] after an initial [analysisExecutorDelayMillis]
      */
     fun schedule(action: Runnable) {
-      scheduledExecutor.schedule(
+      scheduledFuture = scheduledExecutor.schedule(
         {
           analysisExecutor.execute(action)
         },
@@ -131,8 +120,8 @@ class ScreenOffTrigger(
       )
     }
 
-    fun shutdownNow() {
-      scheduledExecutor.shutdownNow()
+    fun stop() {
+      scheduledFuture?.cancel(true)
     }
   }
 
