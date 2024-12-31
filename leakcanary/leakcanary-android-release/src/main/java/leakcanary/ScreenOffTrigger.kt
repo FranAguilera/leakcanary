@@ -46,7 +46,7 @@ class ScreenOffTrigger(
   },
 ) {
 
-  private var delayedScheduledExecutorService: DelayedScheduledExecutorService =
+  private val delayedScheduledExecutorService: DelayedScheduledExecutorService =
     DelayedScheduledExecutorService(analysisExecutor, analysisExecutorDelayMillis)
 
   @Volatile
@@ -106,7 +106,7 @@ class ScreenOffTrigger(
     }
 
     private var scheduledFuture:ScheduledFuture<*>? = null
-    
+
     /**
      * Runs the specified [action] after an initial [analysisExecutorDelayMillis]
      */
