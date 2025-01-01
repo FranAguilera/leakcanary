@@ -7,7 +7,6 @@ internal inline val mainHandler
   get() = leakcanary.internal.mainHandler
 
 internal inline fun checkMainThread() = leakcanary.internal.checkMainThread()
-internal inline fun checkNotMainThread() = leakcanary.internal.checkNotMainThread()
 
 internal inline fun <reified T : Any> noOpDelegate(): T = leakcanary.internal.noOpDelegate()
 

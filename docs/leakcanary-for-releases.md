@@ -57,17 +57,13 @@ class ReleaseExampleApplication : ExampleApplication() {
     // Starts heap analysis on background importance
     BackgroundTrigger(
       application = this,
-      analysisClient = analysisClient,
-      analysisExecutor = analysisExecutor,
-      analysisCallback = analysisCallback
+      analysisJobHandler = analysisJobHandler
     ).start()
 
     // Starts heap analysis when screen off
     ScreenOffTrigger(
       application = this,
-      analysisClient = analysisClient,
-      analysisExecutor = analysisExecutor,
-      analysisCallback = analysisCallback
+      analysisJobHandler = analysisJobHandler
     ).start()
   }
 
@@ -98,6 +94,13 @@ class ReleaseExampleApplication : ExampleApplication() {
     )
   }
 
+  private val analysisJobHandler by lazy {
+    AnalysisJobHandler(
+      analysisClient = analysisClient,
+      analysisExecutor = analysisExecutor,
+      analysisCallback = analysisCallback
+    )
+  }
   // Cancels heap analysis if "heap_analysis_flag" is false.
   private val flagInterceptor = object : HeapAnalysisInterceptor {
     val remoteConfig by lazy { FirebaseRemoteConfig.getInstance() }
