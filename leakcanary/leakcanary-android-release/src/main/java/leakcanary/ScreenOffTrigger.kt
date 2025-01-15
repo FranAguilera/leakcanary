@@ -46,7 +46,7 @@ class ScreenOffTrigger(
   private val analysisExecutorDelayMillis: Long = INITIAL_EXECUTOR_DELAY_IN_MILLI
 ) {
 
-  private var currentJob = AtomicReference<HeapAnalysisJob?>()
+  private val currentJob = AtomicReference<HeapAnalysisJob?>()
 
   private val delayedScheduledExecutorService = DelayedScheduledExecutorService()
   private val screenReceiver = object : BroadcastReceiver() {
