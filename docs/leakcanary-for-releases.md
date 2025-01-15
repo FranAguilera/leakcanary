@@ -12,9 +12,9 @@ having a release crash reporting pipeline, with counts to prioritize fixes.
 LeakCanary for releases exposes APIs to run a heap analysis in release builds, in production.
 
 !!! danger
-    Everything about this is experimental. Running a heap analysis in production is not a very
-    common thing to do, and we're still learning and experimenting with this. Also, both the
-    artifact name and the APIs may change.
+Everything about this is experimental. Running a heap analysis in production is not a very
+common thing to do, and we're still learning and experimenting with this. Also, both the
+artifact name and the APIs may change.
 
 ## Getting started
 
@@ -57,13 +57,17 @@ class ReleaseExampleApplication : ExampleApplication() {
     // Starts heap analysis on background importance
     BackgroundTrigger(
       application = this,
-      analysisJobHandler = analysisJobHandler
+      analysisClient = analysisClient,
+      analysisExecutor = analysisExecutor,
+      analysisCallback = analysisCallback
     ).start()
 
     // Starts heap analysis when screen off
     ScreenOffTrigger(
       application = this,
-      analysisJobHandler = analysisJobHandler
+      analysisClient = analysisClient,
+      analysisExecutor = analysisExecutor,
+      analysisCallback = analysisCallback
     ).start()
   }
 
@@ -94,13 +98,6 @@ class ReleaseExampleApplication : ExampleApplication() {
     )
   }
 
-  private val analysisJobHandler by lazy {
-    AnalysisJobHandler(
-      analysisClient = analysisClient,
-      analysisExecutor = analysisExecutor,
-      analysisCallback = analysisCallback
-    )
-  }
   // Cancels heap analysis if "heap_analysis_flag" is false.
   private val flagInterceptor = object : HeapAnalysisInterceptor {
     val remoteConfig by lazy { FirebaseRemoteConfig.getInstance() }
