@@ -12,9 +12,9 @@ having a release crash reporting pipeline, with counts to prioritize fixes.
 LeakCanary for releases exposes APIs to run a heap analysis in release builds, in production.
 
 !!! danger
-Everything about this is experimental. Running a heap analysis in production is not a very
-common thing to do, and we're still learning and experimenting with this. Also, both the
-artifact name and the APIs may change.
+    Everything about this is experimental. Running a heap analysis in production is not a very
+    common thing to do, and we're still learning and experimenting with this. Also, both the
+    artifact name and the APIs may change.
 
 ## Getting started
 
