@@ -12,6 +12,8 @@ import android.os.Handler
 import android.os.Looper
 import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import leakcanary.internal.friendly.checkMainThread
 import shark.SharkLog
 
@@ -41,12 +43,12 @@ class ScreenOffTrigger(
    *
    * If not specified, the initial delay is 500 ms
    */
-  private val analysisExecutorDelayMillis: Long = INITIAL_EXECUTOR_DELAY_MILLIS
+  private val analysisExecutorDelay: Duration = DEFAULT_ANALYSIS_DELAY
 ) {
 
   private val currentJob = AtomicReference<HeapAnalysisJob?>()
   private val analysisHandler = Handler(Looper.getMainLooper())
-  private var analysisRunnable: Runnable? = null
+  private var submitAnalysisToExecutor: Runnable? = null
 
   private val screenReceiver = object : BroadcastReceiver() {
     override fun onReceive(
@@ -96,16 +98,16 @@ class ScreenOffTrigger(
   }
 
   private fun schedule(action: Runnable) {
-    analysisRunnable = Runnable {
+    submitAnalysisToExecutor = Runnable {
       analysisExecutor.execute(action)
-    }.also { analysisHandler.postDelayed(it, analysisExecutorDelayMillis) }
+    }.also { analysisHandler.postDelayed(it, analysisExecutorDelay.inWholeMilliseconds) }
   }
 
   private fun cancelScheduledAction() {
-    analysisRunnable?.let { analysisHandler.removeCallbacks(it) }
+    submitAnalysisToExecutor?.let { analysisHandler.removeCallbacks(it) }
   }
 
   companion object {
-    private const val INITIAL_EXECUTOR_DELAY_MILLIS = 500L
+    private val DEFAULT_ANALYSIS_DELAY = 500.milliseconds
   }
 }
