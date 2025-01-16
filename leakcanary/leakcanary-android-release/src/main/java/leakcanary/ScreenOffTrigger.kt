@@ -8,11 +8,9 @@ import android.content.Intent.ACTION_SCREEN_OFF
 import android.content.Intent.ACTION_SCREEN_ON
 import android.content.IntentFilter
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import java.util.concurrent.Executor
-import java.util.concurrent.Executors
-import java.util.concurrent.ScheduledExecutorService
-import java.util.concurrent.ScheduledFuture
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import leakcanary.internal.friendly.checkMainThread
 import shark.SharkLog
@@ -24,7 +22,7 @@ class ScreenOffTrigger(
    * The executor on which the analysis is performed and on which [analysisCallback] is called.
    * This should likely be a single thread executor with a background thread priority.
    */
-  analysisExecutor: Executor,
+  private val analysisExecutor: Executor,
 
   /**
    * Called back with a [HeapAnalysisJob.Result] after the screen went off and a
@@ -41,30 +39,31 @@ class ScreenOffTrigger(
   /**
    * Initial delay to wait for analysisExecutor to start analysis
    *
-   * If not provided, initial delay is 500ms
+   * If not specified, the initial delay is 500 ms
    */
-  private val analysisExecutorDelayMillis: Long = INITIAL_EXECUTOR_DELAY_IN_MILLI
+  private val analysisExecutorDelayMillis: Long = INITIAL_EXECUTOR_DELAY_MILLIS
 ) {
 
   private val currentJob = AtomicReference<HeapAnalysisJob?>()
+  private val analysisHandler = Handler(Looper.getMainLooper())
+  private var analysisRunnable: Runnable? = null
 
-  private val delayedScheduledExecutorService = DelayedScheduledExecutorService()
   private val screenReceiver = object : BroadcastReceiver() {
     override fun onReceive(
       context: Context,
       intent: Intent
     ) {
       if (intent.shouldStartAnalysis()) {
-          val job =
-            analysisClient.newJob(JobContext(ScreenOffTrigger::class))
-          if(currentJob.compareAndSet(null, job)){
-            delayedScheduledExecutorService.schedule {
-              val result = job.execute()
-              analysisCallback(result)
-            }
+        val job =
+          analysisClient.newJob(JobContext(ScreenOffTrigger::class))
+        if (currentJob.compareAndSet(null, job)) {
+          schedule {
+            val result = job.execute()
+            analysisCallback(result)
           }
+        }
       } else {
-        delayedScheduledExecutorService.cancel()
+        cancelScheduledAction()
         currentJob.getAndUpdate { job ->
           job?.cancel("screen on again")
           null
@@ -92,37 +91,21 @@ class ScreenOffTrigger(
     application.unregisterReceiver(screenReceiver)
   }
 
-  private fun Intent.shouldStartAnalysis():Boolean{
+  private fun Intent.shouldStartAnalysis(): Boolean {
     return this.action == ACTION_SCREEN_OFF && currentJob.get() == null
   }
 
-  private class DelayedScheduledExecutorService(
-    private val analysisExecutorDelayMillis:Long,
-    private val analysisExecutor: Executor){
-
-    private var scheduledFuture:ScheduledFuture<*>?=null
-
-    private val scheduledExecutorService:ScheduledExecutorService by lazy {
-      Executors.newScheduledThreadPool(1)
-    }
-
-    /** Runs the specified [action] after an initial [analysisExecutorDelayMillis] */
-    fun schedule(action:Runnable){
-      scheduledFuture =
-        scheduledExecutorService.schedule(
-          { analysisExecutor.execute(action)},
-          analysisExecutorDelayMillis,
-          TimeUnit.MILLISECONDS
-        )
-    }
-
-    /** Cancels prior ScheduledExecutorService */
-    fun cancel(){
-      scheduledFuture?.cancel(true)
-    }
+  private fun schedule(action: Runnable) {
+    analysisRunnable = Runnable {
+      analysisExecutor.execute(action)
+    }.also { analysisHandler.postDelayed(it, analysisExecutorDelayMillis) }
   }
 
-  companion object{
-    const val INITIAL_EXECUTOR_DELAY_IN_MILLI = 500L
+  private fun cancelScheduledAction() {
+    analysisRunnable?.let { analysisHandler.removeCallbacks(it) }
+  }
+
+  companion object {
+    private const val INITIAL_EXECUTOR_DELAY_MILLIS = 500L
   }
 }
