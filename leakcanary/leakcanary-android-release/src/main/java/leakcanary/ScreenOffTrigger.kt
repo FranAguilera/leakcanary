@@ -55,7 +55,7 @@ class ScreenOffTrigger(
       context: Context,
       intent: Intent
     ) {
-      if (intent.shouldStartAnalysis()) {
+      if (intent.shouldScheduleAnalysis()) {
         val job =
           analysisClient.newJob(JobContext(ScreenOffTrigger::class))
         if (currentJob.compareAndSet(null, job)) {
@@ -93,7 +93,7 @@ class ScreenOffTrigger(
     application.unregisterReceiver(screenReceiver)
   }
 
-  private fun Intent.shouldStartAnalysis(): Boolean {
+  private fun Intent.shouldScheduleAnalysis(): Boolean {
     return this.action == ACTION_SCREEN_OFF && currentJob.get() == null
   }
 
