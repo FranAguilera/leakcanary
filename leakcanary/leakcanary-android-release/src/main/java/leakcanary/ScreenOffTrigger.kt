@@ -65,7 +65,7 @@ class ScreenOffTrigger(
           }
         }
       } else {
-        cancelScheduledAction()
+        cancelScheduledAnalysis()
         currentJob.getAndUpdate { job ->
           job?.cancel("screen on again")
           null
@@ -103,7 +103,7 @@ class ScreenOffTrigger(
     }.also { analysisHandler.postDelayed(it, analysisExecutorDelay.inWholeMilliseconds) }
   }
 
-  private fun cancelScheduledAction() {
+  private fun cancelScheduledAnalysis() {
     submitAnalysisToExecutor?.let { analysisHandler.removeCallbacks(it) }
   }
 
